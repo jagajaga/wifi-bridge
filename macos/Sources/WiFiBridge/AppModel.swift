@@ -52,7 +52,7 @@ final class AppModel: ObservableObject {
 
     private var timer: Timer?
     private var pendingTick: DispatchWorkItem?
-    private var lastAsk: (ssids: Set<String>, at: Date)?
+    private var askBackoff = AskBackoff(interval: AppModel.askBackoff)
     private var failedJoins: [String: Date] = [:]
 
     init() {
@@ -75,6 +75,12 @@ final class AppModel: ObservableObject {
             Task { @MainActor in await self?.tick() }
         }
         scheduleTick(after: 3)
+    }
+
+    /// The identity, retrying the Keychain if it could not be read at launch (e.g. still locked).
+    func loadIdentity() -> MacIdentity? {
+        if identity == nil { identity = try? IdentityStore.loadOrCreate() }
+        return identity
     }
 
     var menuIcon: String {
@@ -138,11 +144,11 @@ final class AppModel: ObservableObject {
 
         let ssids = visible.compactMap(\.ssid)
         let key = Set(ssids)
-        if let last = lastAsk, last.ssids == key, Date().timeIntervalSince(last.at) < Self.askBackoff {
+        guard askBackoff.shouldAsk(visible: key, now: Date()) else {
             status = "Offline — asked phone recently"
             return
         }
-        lastAsk = (key, Date())
+        askBackoff.recordAsk(key, at: Date())
 
         status = "Syncing with phone…"
         do {
@@ -218,7 +224,7 @@ final class AppModel: ObservableObject {
 
     /// Finds a paired phone over BLE and runs one SYNC exchange, within the 15 s budget.
     func askPhone(ssids: [String], all: Bool) async throws -> SyncClient.Result {
-        guard let identity = identity else { throw AppError.identity("missing") }
+        guard let identity = loadIdentity() else { throw AppError.identity("Keychain unavailable") }
         guard !phones.isEmpty else { throw AppError.noPairedPhone }
         let deadline = Date().addingTimeInterval(Self.bleTimeout)
         try await ble.waitUntilReady(timeout: 3)
@@ -276,7 +282,7 @@ final class AppModel: ObservableObject {
         phones.removeAll { $0.phoneId == phone.phoneId }
         phones.append(phone)
         persistPhones()
-        lastAsk = nil
+        askBackoff.reset()
         lastResult = "Paired \(phone.label) at \(Self.time())"
     }
 
@@ -318,7 +324,7 @@ final class PairingSession: ObservableObject {
 
     func start() {
         stop()
-        guard let identity = model.identity else { phase = .failed("No Mac identity (Keychain)"); return }
+        guard let identity = model.loadIdentity() else { phase = .failed("No Mac identity (Keychain)"); return }
         let client = PairingClient(identity: identity, pairSecret: ProtocolCrypto.randomBytes(16))
         qrImage = QRCode.image(for: client.qr.payload)
         expiresAt = Date().addingTimeInterval(Self.lifetime)

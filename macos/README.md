@@ -67,8 +67,11 @@ Every 20 s, and shortly after CoreWLAN reports a link or power change, if
 3. Otherwise, ask the phone: BLE scan for the service, connect, read INFO, check
    the phone is paired, send the visible SSIDs, receive and verify the response
    (including the nonce echo), cache what came back, and join the strongest one.
-   The whole phone exchange has a 15 s budget. The phone is not asked again for
-   the **same set of visible SSIDs** within 2 minutes.
+   Finding, connecting and sending the request has a 15 s budget; once the
+   request is written the Mac waits up to 75 s for the answer, so a phone with
+   *Share automatically* off has its full 60 s Share / Deny prompt. The phone is
+   not asked again within 2 minutes unless a visible SSID has not been asked
+   about in that time.
 
 **Sync all networks from phone** asks for every network in the phone's vault and
 caches them all (and joins one if the Mac is offline). **Cached networks** lists
