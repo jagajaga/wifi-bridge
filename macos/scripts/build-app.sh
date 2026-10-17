@@ -11,15 +11,20 @@ fi
 
 VERSION="${WB_VERSION_NAME:-0.1.0}"
 BUILD_NUMBER="${WB_VERSION_CODE:-1}"
-# Universal binary (Apple silicon + Intel).
-ARCHS=(--arch arm64 --arch x86_64)
-swift build -c release --product WiFiBridge "${ARCHS[@]}"
-BIN_DIR="$(swift build -c release "${ARCHS[@]}" --show-bin-path)"
+# Universal binary (Apple silicon + Intel). Built per architecture and merged
+# with lipo: `swift build --arch a --arch b` switches to the Xcode build system,
+# which rejects the app target's Swift 5 language-mode setting.
+BINS=()
+for arch in arm64 x86_64; do
+  triple="${arch}-apple-macosx14.0"
+  swift build -c release --product WiFiBridge --triple "$triple"
+  BINS+=("$(swift build -c release --triple "$triple" --show-bin-path)/WiFiBridge")
+done
 
 APP="build/WiFiBridge.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/WiFiBridge" "$APP/Contents/MacOS/WiFiBridge"
+lipo -create "${BINS[@]}" -output "$APP/Contents/MacOS/WiFiBridge"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
