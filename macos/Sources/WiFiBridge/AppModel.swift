@@ -308,6 +308,11 @@ final class AppModel: ObservableObject {
 final class PairingSession: ObservableObject {
     static let lifetime: TimeInterval = 600
 
+    /// Set by the menu just before it opens the pairing window. SwiftUI may also
+    /// open the `Window` scene by itself at launch; without this flag that would
+    /// start a pairing session (pausing auto-sync) nobody asked for.
+    var requested = false
+
     enum Phase: Equatable {
         case idle, searching, paired(String), expired, failed(String)
     }

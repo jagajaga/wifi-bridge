@@ -31,6 +31,7 @@ struct MenuContent: View {
         Divider()
 
         Button("Pair a phone…") {
+            model.pairing.requested = true
             openWindow(id: "pair")
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -53,6 +54,7 @@ struct MenuContent: View {
 
 struct PairView: View {
     @ObservedObject var session: PairingSession
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 16) {
@@ -84,7 +86,16 @@ struct PairView: View {
         }
         .padding(24)
         .frame(minWidth: 360)
-        .onAppear { session.start() }
+        .onAppear {
+            // Only start when the user asked from the menu; close a window that
+            // SwiftUI restored or opened on its own at launch.
+            if session.requested {
+                session.requested = false
+                session.start()
+            } else {
+                dismiss()
+            }
+        }
         .onDisappear { session.stop() }
     }
 }
