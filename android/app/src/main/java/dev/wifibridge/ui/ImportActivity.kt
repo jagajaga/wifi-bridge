@@ -63,7 +63,9 @@ class ImportActivity : ComponentActivity() {
         enableEdgeToEdge()
         val app = application as WifiBridgeApp
         setContent { WbTheme { Surface(Modifier.fillMaxSize()) { ImportScreen(app) } } }
-        if (savedInstanceState == null) lifecycleScope.launch { load(intent) }
+        // Always (re)read the share: the results live in this instance's fields, so after a
+        // configuration change (rotation) skipping this would leave "Reading…" up forever.
+        lifecycleScope.launch { load(intent) }
     }
 
     private suspend fun load(intent: Intent) {

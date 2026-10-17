@@ -101,6 +101,19 @@ final class SyncClientTests: XCTestCase {
         XCTAssertEqual(all.response.networks.map(\.ssid), ["A", "B"])
     }
 
+    /// The phone may hold the reply for its 60 s Share / Deny prompt (protocol.md "Approval");
+    /// the link's connect-time budget must not cut that wait short.
+    func testAllowsApprovalLengthWaitOnceRequestIsWritten() async throws {
+        let phone = try pairedPhone()
+        let client = SyncClient(identity: try v.identity(), pairedPhones: known)
+        // Many SSIDs -> a multi-frame request, so "after the last frame" is distinguishable.
+        _ = try await client.run(phone, ssids: (0..<20).map { "network-\($0)" }, all: false)
+
+        XCTAssertEqual(phone.replyWaits.count, 1)
+        XCTAssertEqual(phone.replyWaits.first?.messagesReceived, 1, "extend only after the whole request is written")
+        XCTAssertGreaterThan(phone.replyWaits.first?.seconds ?? 0, 60, "must outlast the phone's 60 s approval prompt")
+    }
+
     func testRejectsResponseWithDifferentNonce() async throws {
         let phone = try pairedPhone()
         phone.responseNonceOverride = "AAECAwQFBgcICQoLDA0ODw"  // a replayed, validly sealed response

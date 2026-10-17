@@ -15,6 +15,14 @@ public protocol FrameLink: AnyObject {
     func nextFrame() async throws -> Data
     /// Disconnects. Idempotent.
     func close()
+    /// The request is fully written and its reply may legitimately take up to
+    /// `seconds` (the phone can be waiting on a Share / Deny prompt). A link with
+    /// a deadline must push it out to at least `seconds` from now.
+    func allowReplyWait(_ seconds: TimeInterval)
+}
+
+extension FrameLink {
+    public func allowReplyWait(_ seconds: TimeInterval) {}
 }
 
 /// Messages over a FrameLink: splits outgoing, reassembles incoming.

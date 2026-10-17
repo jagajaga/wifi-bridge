@@ -6,6 +6,11 @@ public struct SyncClient: Sendable {
     public let pairedPhones: [PairedPhone]
     public let random: RandomSource
 
+    /// How long the Mac waits for SYNC_RESPONSE once the request is written: the
+    /// phone's approval prompt answers `timeout` after 60 s (protocol.md
+    /// "Approval"), plus margin for the response to cross the link.
+    public static let replyWait: TimeInterval = 75
+
     public init(identity: MacIdentity, pairedPhones: [PairedPhone],
                 random: @escaping RandomSource = ProtocolCrypto.randomBytes) {
         self.identity = identity
@@ -41,6 +46,7 @@ public struct SyncClient: Sendable {
         )
         let channel = MessageChannel(link: link)
         try await channel.send(Message.syncRequest(macId: identity.macId, box: box))
+        link.allowReplyWait(Self.replyWait)
 
         let (type, body) = try Message.parse(try await channel.receive())
         switch type {

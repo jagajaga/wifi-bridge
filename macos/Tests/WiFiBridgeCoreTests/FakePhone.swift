@@ -57,6 +57,10 @@ final class FakePhone: FrameLink {
 
     func close() { closed = true }
 
+    /// Each allowReplyWait call: the seconds asked for, and how many whole messages had arrived by then.
+    private(set) var replyWaits: [(seconds: TimeInterval, messagesReceived: Int)] = []
+    func allowReplyWait(_ seconds: TimeInterval) { replyWaits.append((seconds, received.count)) }
+
     private func key(macPub: Data) throws -> SymmetricKey {
         try ProtocolCrypto.sessionKey(myPrivate: phonePriv, peerPublic: macPub, macPub: macPub, phonePub: phonePub)
     }
