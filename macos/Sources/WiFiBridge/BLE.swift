@@ -207,6 +207,7 @@ final class BLELink: NSObject, CBPeripheralDelegate, FrameLink {
     private var frames: [Data] = []
     private var failure: Error?
     private var deadline: DispatchWorkItem?
+    private var deadlineAt: Date?
     private var closed = false
     fileprivate var onFail: ((Error) -> Void)?
 
@@ -227,8 +228,19 @@ final class BLELink: NSObject, CBPeripheralDelegate, FrameLink {
             self?.fail(BLEError.timeout)
             self?.close()
         }
+        deadline?.cancel()
         deadline = item
+        deadlineAt = Date().addingTimeInterval(seconds)
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    }
+
+    /// FrameLink: the phone may be showing a Share / Deny prompt; never shortens the deadline.
+    func allowReplyWait(_ seconds: TimeInterval) {
+        DispatchQueue.main.async {
+            guard !self.closed, self.failure == nil else { return }
+            if let at = self.deadlineAt, at.timeIntervalSinceNow >= seconds { return }
+            self.armDeadline(seconds)
+        }
     }
 
     /// Main queue only.
