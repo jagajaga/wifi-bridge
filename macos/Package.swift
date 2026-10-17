@@ -47,7 +47,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: products,
     dependencies: [
-        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"6.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),  // 5.x needs Swift tools 6.2; stay buildable with Xcode 16 / Swift 6.1
     ],
     targets: targets,
     swiftLanguageModes: [.v6]
