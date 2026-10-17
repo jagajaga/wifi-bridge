@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  vectors:
+    name: Test vectors are reproducible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography
+      - run: python scripts/gen_test_vectors.py
+      - name: Generated vectors match the committed file
+        run: git diff --exit-code docs/test-vectors.json
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests, lint, debug build
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wifi-bridge-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  swift-linux:
+    name: Protocol core (Linux / BoringSSL)
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+
+  macos:
+    name: macOS app
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+      - name: Protocol core tests (CryptoKit)
+        run: swift test
+      - name: Build WiFiBridge.app
+        run: scripts/build-app.sh
+      - name: Check bundle
+        run: |
+          plutil -lint build/WiFiBridge.app/Contents/Info.plist
+          lipo -archs build/WiFiBridge.app/Contents/MacOS/WiFiBridge
+          codesign --verify --verbose build/WiFiBridge.app
+      - name: Zip
+        run: ditto -c -k --keepParent build/WiFiBridge.app build/WiFiBridge-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wifi-bridge-macos
+          path: macos/build/WiFiBridge-macos.zip

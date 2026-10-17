@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">wifi-bridge</string>
+    <string name="import_label">Add to wifi-bridge</string>
+    <string name="channel_service">Bridge running</string>
+    <string name="channel_approval">Password requests</string>
+    <string name="service_title">wifi-bridge is listening for your Mac</string>
+    <string name="approval_title">Share Wi-Fi password?</string>
+    <string name="approval_text">Share %1$s with %2$s?</string>
+    <string name="approval_all">all saved networks</string>
+    <string name="share">Share</string>
+    <string name="deny">Deny</string>
+</resources>
