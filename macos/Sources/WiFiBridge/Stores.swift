@@ -26,6 +26,12 @@ enum Keychain {
     }
 
     static func get(service: String, account: String) -> Data? {
+        try? read(service: service, account: account)
+    }
+
+    /// nil only when the item does not exist; any other failure (locked keychain,
+    /// access prompt denied) throws, so callers can tell "absent" from "unreadable".
+    static func read(service: String, account: String) throws -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -34,7 +40,9 @@ enum Keychain {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw KeychainError.status(status) }
         return item as? Data
     }
 
@@ -86,9 +94,12 @@ enum IdentityStore {
 
     static func loadOrCreate() throws -> MacIdentity {
         let name = Host.current().localizedName ?? "Mac"
-        if let id = Keychain.get(service: service, account: "macId"),
-           let priv = Keychain.get(service: service, account: "macPriv"),
-           let identity = try? MacIdentity(macId: id, privateKey: priv, name: name) {
+        // Only a missing identity may be replaced. A read that fails for any other
+        // reason must not mint a new macId/key: every paired phone would then
+        // answer "unknown Mac" and need re-pairing.
+        let id = try Keychain.read(service: service, account: "macId")
+        let priv = try Keychain.read(service: service, account: "macPriv")
+        if let id = id, let priv = priv, let identity = try? MacIdentity(macId: id, privateKey: priv, name: name) {
             return identity
         }
         let fresh = try MacIdentity.generate(name: name)
