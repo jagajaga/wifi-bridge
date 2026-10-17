@@ -80,12 +80,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: release-*
           merge-multiple: true
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la dist
+          # Exactly the two shipped files: the signed APK and the macOS zip.
+          test "$(find dist -type f | wc -l)" -eq 2
+          ls dist/wifi-bridge-*.apk dist/WiFiBridge-*-macos.zip
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "WiFi Bridge $GITHUB_REF_NAME" \
             --notes-file .github/release-notes.md
