@@ -151,7 +151,7 @@ jobs:
           tap="$(brew --repository local/ci)"
           mkdir -p "$tap/Casks"
           sed -e "s/@VERSION@/$v/" -e "s/@SHA256@/$sha/" packaging/homebrew/wifi-bridge.rb.tmpl > "$tap/Casks/wifi-bridge.rb"
-          brew style --cask "$tap/Casks/wifi-bridge.rb" || true
+          brew style --cask "$tap/Casks/wifi-bridge.rb"
           brew install --cask local/ci/wifi-bridge
           app=/Applications/WiFiBridge.app
           test -d "$app"
