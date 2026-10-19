@@ -18,8 +18,8 @@ jobs:
     name: Test vectors are reproducible
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install cryptography
@@ -34,22 +34,22 @@ jobs:
       run:
         working-directory: android
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
       - name: Unit tests, lint, debug build
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: android-reports
           path: |
             android/app/build/reports/
             android/app/build/test-results/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: wifi-bridge-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -62,7 +62,7 @@ jobs:
       run:
         working-directory: macos
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: swift test
 
   macos:
@@ -72,7 +72,7 @@ jobs:
       run:
         working-directory: macos
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Toolchain
         run: swift --version && xcodebuild -version
       - name: Protocol core tests (CryptoKit)
@@ -128,7 +128,7 @@ jobs:
           if WB_BASE_URL="file://$dist" WB_INSTALL_DIR="$apps" WB_NO_OPEN=1 bash ../scripts/install-macos.sh; then
             echo "::error::installer accepted a wrong checksum"; exit 1
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: wifi-bridge-macos
           path: |
@@ -139,7 +139,7 @@ jobs:
     name: Homebrew cask installs without quarantine
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Render the cask against the published v0.1.0 zip and install it
         env:
           GH_TOKEN: ${{ github.token }}
