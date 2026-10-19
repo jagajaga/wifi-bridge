@@ -15,6 +15,7 @@
     "pairSecret": "0f0e0d0c0b0a09080706050403020100",
     "macName": "Jaga’s MacBook",
     "qr": "WBPAIR1;ABEiM0RVZneImaq7zN3u_w;B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw;Dw4NDAsKCQgHBgUEAwIBAA;SmFnYeKAmXMgTWFjQm9vaw",
+    "qrUri": "wifibridge://pair?p=WBPAIR1;ABEiM0RVZneImaq7zN3u_w;B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw;Dw4NDAsKCQgHBgUEAwIBAA;SmFnYeKAmXMgTWFjQm9vaw",
     "proof": "45d318c5ce6b01ef3501e33bf62487c999862144d539b5c14d1f36358b2e7853",
     "pairRequest": "0100112233445566778899aabbccddeeff",
     "pairAccept": "0245d318c5ce6b01ef3501e33bf62487c999862144d539b5c14d1f36358b2e7853",

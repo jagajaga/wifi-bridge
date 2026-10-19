@@ -41,6 +41,8 @@ final class ProtocolVectorTests: XCTestCase {
         let qr = PairingQR(macId: v.macId, macPub: v.macPub, pairSecret: v.pairSecret, macName: v.macName)
         XCTAssertEqual(qr.payload, v.string("pairing", "qr"))
         XCTAssertEqual(try PairingQR(parsing: v.string("pairing", "qr")), qr)
+        XCTAssertEqual(qr.uri, v.string("pairing", "qrUri"))
+        XCTAssertEqual(try PairingQR(parsing: v.string("pairing", "qrUri")), qr)
         XCTAssertThrowsError(try PairingQR(parsing: "WBPAIR2;" + v.string("pairing", "qr").dropFirst(8)))
         XCTAssertThrowsError(try PairingQR(parsing: v.string("pairing", "qr") + ";extra"))
     }

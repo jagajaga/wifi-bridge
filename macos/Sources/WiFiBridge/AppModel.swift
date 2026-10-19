@@ -331,7 +331,7 @@ final class PairingSession: ObservableObject {
         stop()
         guard let identity = model.loadIdentity() else { phase = .failed("No Mac identity (Keychain)"); return }
         let client = PairingClient(identity: identity, pairSecret: ProtocolCrypto.randomBytes(16))
-        qrImage = QRCode.image(for: client.qr.payload)
+        qrImage = QRCode.image(for: client.qr.uri)
         expiresAt = Date().addingTimeInterval(Self.lifetime)
         phase = .searching
         detail = "Scan this code with wifi-bridge on your phone."

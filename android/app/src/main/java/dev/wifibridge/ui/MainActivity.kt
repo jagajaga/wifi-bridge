@@ -1,5 +1,6 @@
 package dev.wifibridge.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -50,16 +51,43 @@ import dev.wifibridge.protocol.WifiNetwork
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+    /** A pairing link opened from the camera, waiting for the user to confirm. */
+    private val linkedPairing = mutableStateOf<PairingQr?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as WifiBridgeApp
-        setContent { WbTheme { Surface(Modifier.fillMaxSize()) { MainScreen(app) } } }
+        if (savedInstanceState == null) handleLink(intent)
+        setContent {
+            WbTheme {
+                Surface(Modifier.fillMaxSize()) {
+                    MainScreen(app, linkedPairing.value) { linkedPairing.value = null }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLink(intent)
+    }
+
+    private fun handleLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val link = intent.dataString ?: return
+        val qr = PairingQr.parse(link)
+        if (qr == null) {
+            Toast.makeText(this, "That is not a valid wifi-bridge pairing code", Toast.LENGTH_LONG).show()
+        } else {
+            linkedPairing.value = qr
+        }
     }
 }
 
 @Composable
-private fun MainScreen(app: WifiBridgeApp) {
+private fun MainScreen(app: WifiBridgeApp, linkedPairing: PairingQr?, onLinkHandled: () -> Unit) {
     val ctx = LocalContext.current
     val networks by app.vault.networks.collectAsState()
     val peers by app.peers.peers.collectAsState()
@@ -91,16 +119,39 @@ private fun MainScreen(app: WifiBridgeApp) {
         if (serviceEnabled && !BridgeService.running.value && BlePermissions.hasRequired(ctx)) BridgeService.start(ctx)
     }
 
+    fun acceptPairing(qr: PairingQr) {
+        app.peers.addPending(qr.toPending(System.currentTimeMillis()))
+        Toast.makeText(ctx, "Ready to pair with ${qr.macName} for 10 minutes", Toast.LENGTH_LONG).show()
+        if (!serviceEnabled || !BridgeService.running.value) enableService()
+    }
+
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val text = result.contents ?: return@rememberLauncherForActivityResult
         val qr = PairingQr.parse(text)
         if (qr == null) {
             Toast.makeText(ctx, "That is not a wifi-bridge pairing code", Toast.LENGTH_LONG).show()
         } else {
-            app.peers.addPending(qr.toPending(System.currentTimeMillis()))
-            Toast.makeText(ctx, "Ready to pair with ${qr.macName} for 10 minutes", Toast.LENGTH_LONG).show()
-            if (!serviceEnabled) enableService()
+            acceptPairing(qr)
         }
+    }
+
+    // Opened from the camera: any app or web page can fire a wifibridge:// link,
+    // so nothing is stored until the user confirms.
+    if (linkedPairing != null) {
+        AlertDialog(
+            onDismissRequest = onLinkHandled,
+            title = { Text("Pair with ${linkedPairing.macName}?") },
+            text = {
+                Text(
+                    "This Mac will be able to ask this phone for Wi-Fi passwords. " +
+                        "Only continue if the code is on your own Mac's screen.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { acceptPairing(linkedPairing); onLinkHandled() }) { Text("Pair") }
+            },
+            dismissButton = { TextButton(onClick = onLinkHandled) { Text("Cancel") } },
+        )
     }
 
     Column(

@@ -47,6 +47,7 @@ object Vectors {
         val pairSecret get() = o.hex("pairSecret")
         val macName get() = o.str("macName")
         val qr get() = o.str("qr")
+        val qrUri get() = o.str("qrUri")
         val proof get() = o.hex("proof")
         val pairRequest get() = o.hex("pairRequest")
         val pairAccept get() = o.hex("pairAccept")
