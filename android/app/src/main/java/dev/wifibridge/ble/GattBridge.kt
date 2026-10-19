@@ -107,6 +107,8 @@ class GattBridge(
 
     fun stop() {
         handler.post {
+            stopped = true
+            handler.removeCallbacks(advertiseWatchdog)
             runCatching { manager?.adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback) }
             runCatching { server?.close() }
             server = null
@@ -137,7 +139,32 @@ class GattBridge(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) = onStatus("Advertising")
-        override fun onStartFailure(errorCode: Int) = onStatus("Advertising failed ($errorCode)")
+        override fun onStartFailure(errorCode: Int) {
+            if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) onStatus("Advertising")
+            else onStatus("Advertising failed ($errorCode)")
+        }
+    }
+
+    /** Handler thread only. Set once [stop] runs, so late callbacks don't revive advertising. */
+    private var stopped = false
+
+    /**
+     * Many Android stacks stop legacy connectable advertising as soon as a central
+     * connects and never resume it, which left the phone invisible to the Mac after
+     * the first (pairing) connection. Restart it on every connection change, and
+     * periodically as a backstop. Handler thread only.
+     */
+    private fun restartAdvertising() {
+        if (stopped || server == null) return
+        runCatching { manager?.adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback) }
+        startAdvertising()
+    }
+
+    private val advertiseWatchdog = object : Runnable {
+        override fun run() {
+            restartAdvertising()
+            if (!stopped) handler.postDelayed(this, ADVERTISE_WATCHDOG_MS)
+        }
     }
 
     // ---- outgoing ----
@@ -181,7 +208,11 @@ class GattBridge(
 
     private val callback = object : BluetoothGattServerCallback() {
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
-            if (status == BluetoothGatt.GATT_SUCCESS) handler.post { startAdvertising() }
+            if (status == BluetoothGatt.GATT_SUCCESS) handler.post {
+                startAdvertising()
+                handler.removeCallbacks(advertiseWatchdog)
+                handler.postDelayed(advertiseWatchdog, ADVERTISE_WATCHDOG_MS)
+            }
             else onStatus("Adding GATT service failed ($status)")
         }
 
@@ -189,9 +220,11 @@ class GattBridge(
             handler.post {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     peers.getOrPut(device.address) { Peer(device) }
+                    restartAdvertising()
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     peers.remove(device.address)
                     tx.drop(device.address)
+                    restartAdvertising()
                 }
             }
         }
@@ -300,5 +333,6 @@ class GattBridge(
         const val TAG = "GattBridge"
         const val DEFAULT_MTU = 23
         const val MAX_ATTRIBUTE_VALUE = 512
+        const val ADVERTISE_WATCHDOG_MS = 60_000L
     }
 }

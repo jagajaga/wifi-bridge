@@ -106,6 +106,11 @@ final class BLECentral: NSObject, CBCentralManagerDelegate {
         await withCheckedContinuation { (c: CheckedContinuation<[CBPeripheral], Never>) in
             DispatchQueue.main.async {
                 self.discovered = [:]
+                // A phone already connected to this Mac (e.g. a link that has not
+                // been torn down yet) does not advertise to us; include it directly.
+                for p in self.manager.retrieveConnectedPeripherals(withServices: [UUIDs.service]) {
+                    self.discovered[p.identifier] = (p, 0)
+                }
                 self.manager.scanForPeripherals(withServices: [UUIDs.service],
                                                 options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
                 let start = Date()

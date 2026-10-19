@@ -13,7 +13,8 @@ enum AppError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noPairedPhone: return "No phone paired yet"
-        case .phoneNotFound: return "Phone not found nearby"
+        case .phoneNotFound:
+            return "Phone not found nearby — open wifi-bridge on the phone and check it says “Advertising”"
         case .identity(let s): return "Identity error: \(s)"
         }
     }
