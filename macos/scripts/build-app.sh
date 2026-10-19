@@ -53,7 +53,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --deep -s - "$APP"
+if [[ -n "${WB_SIGN_IDENTITY:-}" ]]; then
+  # Developer ID + hardened runtime + secure timestamp: what notarization needs.
+  codesign --force --options runtime --timestamp \
+    --entitlements WiFiBridge.entitlements \
+    -s "$WB_SIGN_IDENTITY" "$APP"
+  codesign --verify --strict --verbose=2 "$APP"
+else
+  # Local/CI builds without a certificate: ad-hoc (Gatekeeper will quarantine).
+  codesign --force -s - --entitlements WiFiBridge.entitlements "$APP"
+fi
 
 echo "Built $(pwd)/$APP"
 echo "Run it with: open \"$(pwd)/$APP\""
