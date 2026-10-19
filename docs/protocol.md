@@ -38,9 +38,17 @@ Tink's `subtle.ChaCha20Poly1305`.
 
 ## Pairing QR (shown by the Mac)
 
+The QR encodes a URI, so the phone's normal camera app hands it to wifi-bridge:
+
 ```
-WBPAIR1;<b64url macId>;<b64url macPub>;<b64url pairSecret>;<b64url utf8 macName>
+wifibridge://pair?p=<payload>
+payload = WBPAIR1;<b64url macId>;<b64url macPub>;<b64url pairSecret>;<b64url utf8 macName>
 ```
+
+The phone accepts the URI (with `p` raw or percent-encoded) and, for
+compatibility with v0.1/v0.2 Macs, the bare payload. Opening the link shows a
+confirmation ("Pair with *macName*?") before anything is stored — any web page
+can fire a `wifibridge://` link.
 
 `pairSecret` is 16 fresh random bytes per pairing attempt, valid 10 minutes.
 The QR is the trusted channel: it gives the phone `macPub`, and gives the Mac a

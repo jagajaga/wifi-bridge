@@ -102,6 +102,7 @@ def main() -> None:
         "info": h(info),
         "pairing": {
             "pairSecret": h(pair_secret), "macName": mac_name, "qr": qr,
+            "qrUri": "wifibridge://pair?p=" + qr,
             "proof": h(proof), "pairRequest": h(bytes([0x01]) + mac_id), "pairAccept": h(bytes([0x02]) + proof),
             "confirmNonce": h(n1), "pairConfirm": h(pair_confirm),
         },

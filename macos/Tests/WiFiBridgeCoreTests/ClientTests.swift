@@ -16,6 +16,7 @@ final class PairingClientTests: XCTestCase {
         let random = ScriptedRandom([v.hex("pairing", "confirmNonce")])
         let client = PairingClient(identity: try v.identity(), pairSecret: v.pairSecret, random: random.source)
         XCTAssertEqual(client.qr.payload, v.string("pairing", "qr"))
+        XCTAssertEqual(client.qr.uri, v.string("pairing", "qrUri"))
 
         let paired = try await client.run(phone)
 

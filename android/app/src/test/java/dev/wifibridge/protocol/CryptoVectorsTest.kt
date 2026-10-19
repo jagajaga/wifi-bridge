@@ -62,6 +62,30 @@ class CryptoVectorsTest {
         assertEquals(Vectors.pairing.macName, qr.macName)
     }
 
+    @Test fun pairingUriParsesToTheSameCode() {
+        val plain = assertNotNullAndGet(PairingQr.parse(Vectors.pairing.qr))
+        for (form in listOf(
+            Vectors.pairing.qrUri,
+            Vectors.pairing.qrUri.replace(";", "%3B"),              // percent-encoded by a scanner
+            Vectors.pairing.qrUri.replace("wifibridge://pair", "WIFIBRIDGE://PAIR"),
+            "wifibridge://pair?x=1&p=" + Vectors.pairing.qr + "#frag",
+            "  " + Vectors.pairing.qrUri + "\n",
+        )) {
+            val qr = assertNotNullAndGet(PairingQr.parse(form))
+            assertArrayEquals(form, plain.macId, qr.macId)
+            assertArrayEquals(form, plain.macPub, qr.macPub)
+            assertArrayEquals(form, plain.pairSecret, qr.pairSecret)
+            assertEquals(form, plain.macName, qr.macName)
+        }
+    }
+
+    @Test fun pairingUriRejectsJunk() {
+        assertEquals(null, PairingQr.parse("wifibridge://pair"))
+        assertEquals(null, PairingQr.parse("wifibridge://pair?q=" + Vectors.pairing.qr))
+        assertEquals(null, PairingQr.parse("wifibridge://pair?p=%ZZ"))
+        assertEquals(null, PairingQr.parse("https://example.com/pair?p=" + Vectors.pairing.qr))
+    }
+
     @Test fun pairingQrRejectsJunk() {
         assertEquals(null, PairingQr.parse("WBPAIR2;a;b;c;d"))
         assertEquals(null, PairingQr.parse("WBPAIR1;AAAA;AAAA;AAAA;AAAA"))
