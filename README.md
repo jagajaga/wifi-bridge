@@ -29,9 +29,9 @@ The transport is Bluetooth Low Energy, so it works with no Wi-Fi and no internet
 Download both apps from the [latest release](https://github.com/jagajaga/wifi-bridge/releases/latest):
 
 - **Android 10+:** `wifi-bridge-<version>.apk`
-- **macOS 14+:** `WiFiBridge-<version>-macos.zip` — ad-hoc signed, not notarized;
-  on first launch right-click → Open, or run
-  `xattr -dr com.apple.quarantine /Applications/WiFiBridge.app`.
+- **macOS 14+:** `WiFiBridge-<version>.dmg` — open it and drag WiFi Bridge to
+  Applications. Signed with Developer ID and notarized by Apple, so it opens
+  normally. (`WiFiBridge-<version>-macos.zip` holds the same notarized app.)
 
 Build from source: [android/README.md](android/README.md),
 [macos/README.md](macos/README.md).
@@ -44,8 +44,13 @@ Build from source: [android/README.md](android/README.md),
 - CI (`.github/workflows/ci.yml`) checks the vectors are reproducible, runs the
   Android unit tests + lint + build, the Swift core tests on Linux and macOS, and
   builds the universal macOS app.
-- Releases: push a `v*` tag; `.github/workflows/release.yml` builds the signed APK
-  and the macOS zip and publishes a GitHub release.
+- Releases: push a `v*` tag; `.github/workflows/release.yml` builds the signed
+  APK, signs the macOS app with Developer ID (hardened runtime), notarizes and
+  staples the app and DMG, checks Gatekeeper accepts them, and publishes a
+  GitHub release. Required repository secrets: `WB_KEYSTORE_B64`,
+  `WB_KEYSTORE_PASSWORD`, `WB_KEY_ALIAS` (Android); `MACOS_DEVELOPER_ID_P12`,
+  `MACOS_DEVELOPER_ID_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`
+  (macOS).
 
 ## License
 

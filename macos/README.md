@@ -11,7 +11,10 @@ Wire format: [../docs/protocol.md](../docs/protocol.md).
 | `Sources/WiFiBridgeCore/` | All protocol logic, platform independent (swift-crypto): keys, seal/open, framing, messages, pairing QR, proof, sync JSON, and the pairing / sync client state machines over an abstract `FrameLink`. |
 | `Tests/WiFiBridgeCoreTests/` | Tests against `../docs/test-vectors.json`, plus the state machines driven by an in-memory fake phone. |
 | `Sources/WiFiBridge/` | The app: SwiftUI `MenuBarExtra`, CoreBluetooth central, CoreWLAN, CoreLocation, Keychain. macOS only (declared under `#if os(macOS)` in `Package.swift`). Swift 5 language mode; the core is Swift 6. |
-| `scripts/build-app.sh` | Builds and ad-hoc signs `build/WiFiBridge.app`. |
+| `scripts/build-app.sh` | Builds the universal `build/WiFiBridge.app`; signs with Developer ID + hardened runtime when `WB_SIGN_IDENTITY` is set, else ad-hoc. |
+| `scripts/notarize.sh` | Notarizes and staples the app and a DMG, then checks Gatekeeper accepts both (needs `WB_SIGN_IDENTITY`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`). |
+| `scripts/import-signing-cert.sh` | CI helper: imports the Developer ID `.p12` into a temporary keychain. |
+| `WiFiBridge.entitlements` | Hardened-runtime Location entitlement (needed to see SSIDs). |
 
 ## Build
 
@@ -23,7 +26,10 @@ scripts/build-app.sh          # -> macos/build/WiFiBridge.app
 open build/WiFiBridge.app
 ```
 
-The app is ad-hoc signed (`codesign -s -`) and not sandboxed. Tests (any OS):
+A local build without `WB_SIGN_IDENTITY` is ad-hoc signed and not sandboxed;
+released builds are Developer ID signed and notarized. To sign locally:
+`WB_SIGN_IDENTITY="Developer ID Application: …" scripts/build-app.sh`, then
+`scripts/notarize.sh`. Tests (any OS):
 
 ```sh
 swift test
@@ -38,8 +44,9 @@ swift test
    at first launch; the menu shows the status and a button to ask again. If
    denied: System Settings › Privacy & Security › Location Services.
 3. **Keychain** — passwords, the Mac's private key and `macId` are stored in your
-   login keychain. Because the app is ad-hoc signed, every rebuild has a new code
-   signature, and macOS may ask "WiFi Bridge wants to use your confidential
+   login keychain. Released builds keep a stable Developer ID signature, so this
+   is silent across updates. Ad-hoc local builds get a new signature on every
+   rebuild, and macOS may ask "WiFi Bridge wants to use your confidential
    information stored in … keychain" — choose *Always Allow*.
 
 ## Pairing

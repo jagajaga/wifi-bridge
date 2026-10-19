@@ -77,8 +77,36 @@ jobs:
         run: swift --version && xcodebuild -version
       - name: Protocol core tests (CryptoKit)
         run: swift test
-      - name: Build WiFiBridge.app
-        run: scripts/build-app.sh
+      - name: Throwaway self-signed "Developer ID" identity (exercises the release signing path)
+        run: |
+          d="$RUNNER_TEMP/ci-cert"; mkdir -p "$d"
+          cat > "$d/ext.cnf" <<'CNF'
+          [req]
+          distinguished_name = dn
+          x509_extensions = ext
+          prompt = no
+          [dn]
+          CN = Developer ID Application: CI Throwaway (CITEST0000)
+          [ext]
+          basicConstraints = critical,CA:false
+          keyUsage = critical,digitalSignature
+          extendedKeyUsage = critical,codeSigning
+          CNF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -config "$d/ext.cnf" \
+            -keyout "$d/key.pem" -out "$d/cert.pem"
+          openssl pkcs12 -export -legacy -inkey "$d/key.pem" -in "$d/cert.pem" \
+            -passout pass:ci -out "$d/cert.p12" 2>/dev/null \
+            || openssl pkcs12 -export -inkey "$d/key.pem" -in "$d/cert.pem" -passout pass:ci -out "$d/cert.p12"
+          echo "CERT_P12_B64=$(base64 -i "$d/cert.p12" | tr -d '\n')" >> "$GITHUB_ENV"
+          echo "CERT_PASSWORD=ci" >> "$GITHUB_ENV"
+          echo "CERT_TRUST_PEM=$d/cert.pem" >> "$GITHUB_ENV"
+      - name: Import it the way the release does
+        run: scripts/import-signing-cert.sh "$RUNNER_TEMP/ci.keychain-db"
+      - name: Build WiFiBridge.app (hardened runtime, signed with the throwaway identity)
+        run: |
+          scripts/build-app.sh
+          codesign -d --entitlements - --xml build/WiFiBridge.app | grep -q personal-information.location
+          codesign -dv build/WiFiBridge.app 2>&1 | tee /dev/stderr | grep -q 'flags=0x10000(runtime)'
       - name: Check bundle
         run: |
           plutil -lint build/WiFiBridge.app/Contents/Info.plist
