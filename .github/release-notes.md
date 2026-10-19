@@ -1,11 +1,22 @@
 ## Install
 
-**Android (10+)** — download `wifi-bridge-*.apk` and open it on the phone
-(allow "install unknown apps" for your browser or file manager when asked).
+**Mac (macOS 14+)** — either:
 
-**macOS (14+)** — download `WiFiBridge-*.dmg`, open it, drag **WiFi Bridge**
-to Applications. It is signed with Developer ID and notarized by Apple.
+```sh
+brew install --cask jagajaga/tap/wifi-bridge
+```
 
-Then: pair from the Mac menu ("Pair a phone…") by scanning the QR with the
+```sh
+curl -fsSL https://raw.githubusercontent.com/jagajaga/wifi-bridge/main/scripts/install-macos.sh | bash
+```
+
+Both install an app that opens normally. (The `.dmg` below works too, but a
+browser download is quarantined until the app is notarized: first launch needs
+right-click → Open.)
+
+**Android (10+)** — download `wifi-bridge.apk` and open it on the phone
+(allow "install unknown apps" when asked).
+
+Then pair from the Mac menu ("Pair a phone…") by scanning the QR with the
 Android app, and add networks on the phone by sharing the Wi-Fi QR image from
-Settings → Wi-Fi → network → Share. See the README for details.
+Settings → Wi-Fi → network → Share.
