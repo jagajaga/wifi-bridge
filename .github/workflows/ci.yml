@@ -112,9 +112,58 @@ jobs:
           plutil -lint build/WiFiBridge.app/Contents/Info.plist
           lipo -archs build/WiFiBridge.app/Contents/MacOS/WiFiBridge
           codesign --verify --verbose build/WiFiBridge.app
-      - name: Zip
-        run: ditto -c -k --keepParent build/WiFiBridge.app build/WiFiBridge-macos.zip
+      - name: Package (zip + DMG)
+        run: WB_VERSION_NAME=0.0.0-ci scripts/package.sh
+      - name: Install script, from the freshly built zip
+        run: |
+          dist="$RUNNER_TEMP/dist"; mkdir -p "$dist"
+          cp build/WiFiBridge-0.0.0-ci-macos.zip "$dist/WiFiBridge-macos.zip"
+          (cd "$dist" && shasum -a 256 WiFiBridge-macos.zip > checksums.txt)
+          apps="$RUNNER_TEMP/apps"
+          WB_BASE_URL="file://$dist" WB_INSTALL_DIR="$apps" WB_NO_OPEN=1 bash ../scripts/install-macos.sh
+          codesign --verify --strict "$apps/WiFiBridge.app"
+          if xattr -p com.apple.quarantine "$apps/WiFiBridge.app" 2>/dev/null; then echo "::error::quarantine left on"; exit 1; fi
+          # Control: a tampered checksum must be refused.
+          echo "0000000000000000000000000000000000000000000000000000000000000000  WiFiBridge-macos.zip" > "$dist/checksums.txt"
+          if WB_BASE_URL="file://$dist" WB_INSTALL_DIR="$apps" WB_NO_OPEN=1 bash ../scripts/install-macos.sh; then
+            echo "::error::installer accepted a wrong checksum"; exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: wifi-bridge-macos
-          path: macos/build/WiFiBridge-macos.zip
+          path: |
+            macos/build/WiFiBridge-*.dmg
+            macos/build/WiFiBridge-*-macos.zip
+
+  homebrew-cask:
+    name: Homebrew cask installs without quarantine
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render the cask against the published v0.1.0 zip and install it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=0.1.0
+          gh release download "v$v" -R "$GITHUB_REPOSITORY" -p "WiFiBridge-$v-macos.zip" -D "$RUNNER_TEMP"
+          sha="$(shasum -a 256 "$RUNNER_TEMP/WiFiBridge-$v-macos.zip" | awk '{print $1}')"
+          brew tap-new --no-git local/ci >/dev/null
+          tap="$(brew --repository local/ci)"
+          mkdir -p "$tap/Casks"
+          sed -e "s/@VERSION@/$v/" -e "s/@SHA256@/$sha/" packaging/homebrew/wifi-bridge.rb.tmpl > "$tap/Casks/wifi-bridge.rb"
+          brew style --cask "$tap/Casks/wifi-bridge.rb" || true
+          brew install --cask local/ci/wifi-bridge
+          app=/Applications/WiFiBridge.app
+          test -d "$app"
+          # Control: Homebrew must have quarantined the download, or the check below proves nothing.
+          cached="$(brew --cache --cask local/ci/wifi-bridge)"
+          if xattr -p com.apple.quarantine "$cached" >/dev/null 2>&1; then
+            echo "download was quarantined by Homebrew (control ok)"
+          else
+            echo "::warning::Homebrew did not quarantine the download here; the no-quarantine check is vacuous on this runner"
+          fi
+          if xattr -p com.apple.quarantine "$app" 2>/dev/null; then
+            echo "::error::cask install left the quarantine flag on $app"; exit 1
+          fi
+          brew uninstall --cask local/ci/wifi-bridge
+          test ! -d "$app"

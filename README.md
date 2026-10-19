@@ -26,12 +26,28 @@ The transport is Bluetooth Low Energy, so it works with no Wi-Fi and no internet
 
 ## Install
 
-Download both apps from the [latest release](https://github.com/jagajaga/wifi-bridge/releases/latest):
+### Mac (macOS 14+)
 
-- **Android 10+:** `wifi-bridge-<version>.apk`
-- **macOS 14+:** `WiFiBridge-<version>.dmg` — open it and drag WiFi Bridge to
-  Applications. Signed with Developer ID and notarized by Apple, so it opens
-  normally. (`WiFiBridge-<version>-macos.zip` holds the same notarized app.)
+Either of these installs WiFi Bridge so it opens normally — no right-click → Open,
+no `xattr`:
+
+```sh
+brew install --cask jagajaga/tap/wifi-bridge
+```
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jagajaga/wifi-bridge/main/scripts/install-macos.sh | bash
+```
+
+The installer checks the download against the release's `checksums.txt`.
+`WiFiBridge.dmg` from the [latest release](https://github.com/jagajaga/wifi-bridge/releases/latest)
+also works, but a browser download is quarantined by macOS, so until the app is
+notarized the first launch from the DMG needs right-click → Open.
+
+### Android (10+)
+
+Download `wifi-bridge.apk` from the [latest release](https://github.com/jagajaga/wifi-bridge/releases/latest)
+and open it on the phone (allow "install unknown apps" when asked).
 
 Build from source: [android/README.md](android/README.md),
 [macos/README.md](macos/README.md).
@@ -44,13 +60,17 @@ Build from source: [android/README.md](android/README.md),
 - CI (`.github/workflows/ci.yml`) checks the vectors are reproducible, runs the
   Android unit tests + lint + build, the Swift core tests on Linux and macOS, and
   builds the universal macOS app.
-- Releases: push a `v*` tag; `.github/workflows/release.yml` builds the signed
-  APK, signs the macOS app with Developer ID (hardened runtime), notarizes and
-  staples the app and DMG, checks Gatekeeper accepts them, and publishes a
-  GitHub release. Required repository secrets: `WB_KEYSTORE_B64`,
-  `WB_KEYSTORE_PASSWORD`, `WB_KEY_ALIAS` (Android); `MACOS_DEVELOPER_ID_P12`,
-  `MACOS_DEVELOPER_ID_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`
-  (macOS).
+- Releases: push a `v*` tag. `.github/workflows/release.yml` builds the signed
+  APK and the universal macOS app (DMG + zip, versioned and version-free names,
+  `checksums.txt`), publishes the GitHub release, updates the cask in
+  [jagajaga/homebrew-tap](https://github.com/jagajaga/homebrew-tap), then
+  installs it on a Mac via both brew and the curl script and fails if quarantine
+  survives.
+- Secrets: `WB_KEYSTORE_B64`, `WB_KEYSTORE_PASSWORD`, `WB_KEY_ALIAS` (Android
+  signing); `TAP_DEPLOY_KEY` (push to the tap). Optional — when all five are set
+  the Mac app is Developer ID signed and notarized instead of ad-hoc:
+  `MACOS_DEVELOPER_ID_P12`, `MACOS_DEVELOPER_ID_PASSWORD`, `ASC_KEY_ID`,
+  `ASC_ISSUER_ID`, `ASC_KEY_P8`.
 
 ## License
 

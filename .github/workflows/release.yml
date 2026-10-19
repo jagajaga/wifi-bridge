@@ -50,7 +50,7 @@ jobs:
           path: ${{ runner.temp }}/wifi-bridge-*.apk
 
   macos:
-    name: macOS release app (Developer ID, notarized)
+    name: macOS release app
     needs: ci
     runs-on: macos-15
     defaults:
@@ -64,28 +64,32 @@ jobs:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require signing secrets
+      - name: Notarize this release?
+        id: mode
         run: |
-          missing=0
-          for v in CERT_P12_B64 CERT_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
-            [ -n "${!v}" ] || { echo "::error::secret for $v is not set"; missing=1; }
-          done
-          exit $missing
-      - name: Import Developer ID certificate into a temporary keychain
+          if [ -n "$CERT_P12_B64" ] && [ -n "$CERT_PASSWORD" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "notarize=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Developer ID / App Store Connect secrets not set: shipping an ad-hoc signed build (Homebrew cask and install script clear quarantine)."
+            echo "notarize=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import Developer ID certificate
+        if: steps.mode.outputs.notarize == 'true'
         run: |
           scripts/import-signing-cert.sh "$RUNNER_TEMP/signing.keychain-db"
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
           echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
-      - name: Build, sign, notarize, staple
+      - name: Build and package
         env:
           WB_VERSION_NAME: ${{ github.ref_name }}
           WB_VERSION_CODE: ${{ github.run_number }}
+          NOTARIZE: ${{ steps.mode.outputs.notarize }}
         run: |
           export WB_VERSION_NAME="${WB_VERSION_NAME#v}"
           scripts/build-app.sh
-          scripts/notarize.sh
+          if [ "$NOTARIZE" = "true" ]; then scripts/notarize.sh; else scripts/package.sh; fi
       - name: Clean up keychain
-        if: always()
+        if: always() && steps.mode.outputs.notarize == 'true'
         run: |
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
           rm -f "$RUNNER_TEMP/AuthKey.p8"
@@ -107,14 +111,82 @@ jobs:
           path: dist
           pattern: release-*
           merge-multiple: true
+      - name: Stable names and checksums
+        run: |
+          cd dist
+          # Exactly the built files: signed APK, macOS DMG and zip.
+          test "$(find . -type f | wc -l)" -eq 3
+          v="${GITHUB_REF_NAME#v}"
+          ls "wifi-bridge-$v.apk" "WiFiBridge-$v.dmg" "WiFiBridge-$v-macos.zip"
+          # Version-free names so /releases/latest/download/<name> always works.
+          cp "wifi-bridge-$v.apk" wifi-bridge.apk
+          cp "WiFiBridge-$v.dmg" WiFiBridge.dmg
+          cp "WiFiBridge-$v-macos.zip" WiFiBridge-macos.zip
+          sha256sum * > checksums.txt
+          cat checksums.txt
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls -la dist
-          # Exactly the shipped files: the signed APK, the notarized DMG and zip.
-          test "$(find dist -type f | wc -l)" -eq 3
-          ls dist/wifi-bridge-*.apk dist/WiFiBridge-*.dmg dist/WiFiBridge-*-macos.zip
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "WiFi Bridge $GITHUB_REF_NAME" \
             --notes-file .github/release-notes.md
+
+  homebrew:
+    name: Update Homebrew cask
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: jagajaga/homebrew-tap
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          path: tap
+      - name: Render and push the cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          gh release download "$GITHUB_REF_NAME" -p checksums.txt -O checksums.txt
+          sha="$(awk -v f="WiFiBridge-$v-macos.zip" '$2 == f {print $1}' checksums.txt)"
+          test -n "$sha"
+          mkdir -p tap/Casks
+          old="$(sed -n 's/^  version "\(.*\)"/\1/p' tap/Casks/wifi-bridge.rb 2>/dev/null || true)"
+          sed -e "s/@VERSION@/$v/" -e "s/@SHA256@/$sha/" packaging/homebrew/wifi-bridge.rb.tmpl > tap/Casks/wifi-bridge.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/wifi-bridge.rb
+          if git diff --cached --quiet; then echo "cask unchanged"; exit 0; fi
+          if [ -n "$old" ]; then msg="chore(wifi-bridge): $old -> $v"; else msg="feat(wifi-bridge): add cask $v"; fi
+          git commit -m "$msg"
+          git push
+
+  verify-install:
+    name: Install on a Mac (cask + curl), no quarantine
+    needs: homebrew
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: brew install --cask
+        run: |
+          brew tap jagajaga/tap
+          brew install --cask jagajaga/tap/wifi-bridge
+          app=/Applications/WiFiBridge.app
+          test -d "$app"
+          if xattr -p com.apple.quarantine "$app" 2>/dev/null; then
+            echo "::error::Homebrew install left the quarantine flag on $app"; exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app/Contents/Info.plist" | grep -qx "${GITHUB_REF_NAME#v}"
+          codesign --verify --strict "$app"
+          brew uninstall --cask wifi-bridge
+      - name: curl | bash installer
+        run: |
+          dir="$RUNNER_TEMP/apps"
+          WB_INSTALL_DIR="$dir" WB_NO_OPEN=1 WB_VERSION="$GITHUB_REF_NAME" bash scripts/install-macos.sh
+          test -d "$dir/WiFiBridge.app"
+          if xattr -p com.apple.quarantine "$dir/WiFiBridge.app" 2>/dev/null; then
+            echo "::error::install script left the quarantine flag"; exit 1
+          fi
+          codesign --verify --strict "$dir/WiFiBridge.app"
